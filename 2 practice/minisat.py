@@ -9,41 +9,37 @@ def depend(head, dependencies):
 
 def conflict(head, conflicts):
     result = []
-    for conf in conflicts():
-        if conf is not str:
-            conf = ' '.join(conf)
+    for conf in conflicts:
         result.append(f'-{head} -{conf}')
     return result
 
 
 def build_cnf(packages: dict, installed):
-    index = dict()
+    index = {}
     for k, v in enumerate(packages, 1):
         index[v] = str(k)
 
     clauses = []
-    for package_name in packages:
+    for package_name, package in packages.items():
         i = index[package_name]
-        package = packages[package_name]
 
-        if package["depends"]:
-            for dep in package["depends"]:
-                clauses += depend(i, [index[dep] for e in dep])
+        if package.get('depends'):
+            clauses += depend(i, (
+                index[dep] if isinstance(dep, str)
+                else (index[alternative] for alternative in dep)
+                for dep in package['depends']))
 
-        if package["conflicts"]:
-            for dep in package["conflicts"]:
-                clauses.append(conflict(i, [index[dep] for e in dep]))
+        if package.get('conflicts'):
+            clauses += conflict(i, (index[e] for e in package['conflicts']))
+    clauses += [index[e] for e in installed]
+    return [f'p cnf {len(packages)} {len(clauses)}'] + \
+           [e + ' 0' for e in clauses]
 
-    for package_name in installed:
-        clauses += [index[package_name]]
 
-    return [f'p cnf {len(packages)} {len(clauses)}'] + [e + " 0" for e in clauses]
-
-"""
 def check_structure_satisfiable(packages, install):
     from subprocess import run
     with open('packages.cnf', 'w') as f:
-        f.write('\n'.join(build_cnf(packages, install)))
+        f.write("\n".join(build_cnf(packages, install)))
     try:
         run(['minisat/minisat', 'packages.cnf', 'result.txt'])
         print('\n' * 1000)
@@ -76,7 +72,7 @@ def main():
         y=dict(depends=["z"], conflicts=[]),
         z=dict(depends=[], conflicts=[]),
     )
-    install = ["a", "z"]
+    install = ["a", "b"]
     result = check_structure_satisfiable(packages, install)
 
     if not result:
@@ -90,8 +86,8 @@ def main():
         if not download:
             print("не содержит пакетов вовсе :)")
         names = list(packages.keys())
-        print(', '.join([names[i-1] for i in download]))
+        print(', '.join([names[i - 1] for i in download]))
 
-"""
+
 if __name__ == '__main__':
     main()
